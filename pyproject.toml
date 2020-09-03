@@ -9,7 +9,7 @@ python = "^3.6.1"
 networkx = { version = "^2.5", optional = true }
 
 [tool.poetry.dev-dependencies]
-matplotlib = { version = "^3.3", optional = true }
+matplotlib = { version = "^3.3" }
 pytest = "^3.0"
 black = { version = "^19.10b0", python = "^3.6" }
 pre-commit = "^2.3.0"
