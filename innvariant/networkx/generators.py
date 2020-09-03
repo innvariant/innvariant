@@ -5,16 +5,7 @@ import networkx as nx
 
 def glock_graph(n: int, r: int):
     """
-```bibtex
-@inproceedings{riis2006information,
-  title={Information flows, graphs and their guessing numbers},
-  author={Riis, S{\o}ren},
-  booktitle={2006 4th International Symposium on Modeling and Optimization in Mobile, Ad Hoc and Wireless Networks},
-  pages={1--9},
-  year={2006},
-  organization={IEEE}
-}
-```
+    @see riis2006information Information flows, graphs and their guessing numbers (2006)
     """
     assert n > 1
     assert r <= floor((n - 1) / 2)
