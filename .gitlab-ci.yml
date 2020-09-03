@@ -13,7 +13,7 @@ stages:
     - pip install poetry
     - poetry --version
     - poetry config virtualenvs.in-project true
-    - poetry install -vv
+    - poetry install -vv -E all
 
 .test-template: &test
   <<: *install-deps
