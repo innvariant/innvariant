@@ -4,7 +4,14 @@ Provides some additional functionalities re-used over multiple experiments and t
 
 # Install
 ``poetry install innvariant[all]``
-``poetry install -E all`` (considering extra variants "all")
+
+# NetworkX Additions
+Generate a glock graph (see @[riis2006information]):
+```python
+from innvariant.networkx.generators import glock_graph
+
+glock_graph(n=5, r=2)  # Glock Graph with guessing number r=2
+```
 
 
 
@@ -36,3 +43,20 @@ Run ``act``
 
 ## Running pre-commit checks locally
 ``poetry run pre-commit run --all-files``
+
+
+# References
+
+- <a name="ref-riis2006information">[Information flows, graphs and their guessing numbers](https://doi.org/10.37236/962)</a>
+
+[riis2006information]:#ref-riis2006information "Information flows, graphs and their guessing numbers"
+```bibtex
+@inproceedings{riis2006information,
+  title={Information flows, graphs and their guessing numbers},
+  author={Riis, S{\o}ren},
+  booktitle={2006 4th International Symposium on Modeling and Optimization in Mobile, Ad Hoc and Wireless Networks},
+  pages={1--9},
+  year={2006},
+  organization={IEEE}
+}
+```
