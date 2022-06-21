@@ -1,15 +1,19 @@
-import os
-import json
-import uuid
-import numpy as np
-import pandas as pd
-import marshal
-import time
 import hashlib
+import json
+import marshal
+import os
 import shutil
+import time
+
+import pandas as pd
 
 
-def calculate_or_cache(fn_calculate, force_calc=False, clear_cache=False, path_base_cache="~/.cache/analysisnotebook/"):
+def calculate_or_cache(
+    fn_calculate,
+    force_calc=False,
+    clear_cache=False,
+    path_base_cache="~/.cache/analysisnotebook/",
+):
     assert callable(fn_calculate)
     name_calculation = fn_calculate.__name__
     name_cache_meta = "cache-meta.json"
@@ -20,7 +24,9 @@ def calculate_or_cache(fn_calculate, force_calc=False, clear_cache=False, path_b
 
     res = None
 
-    path_base_cache = os.path.join(os.path.expanduser(path_base_cache), name_calculation)
+    path_base_cache = os.path.join(
+        os.path.expanduser(path_base_cache), name_calculation
+    )
     path_meta = os.path.join(path_base_cache, name_cache_meta)
     if not os.path.exists(path_base_cache):
         os.makedirs(path_base_cache)
@@ -43,7 +49,10 @@ def calculate_or_cache(fn_calculate, force_calc=False, clear_cache=False, path_b
             elif meta["format"] == "list":
                 res = [pd.read_hdf(path_hd5, key=k) for k in meta["keys"]]
             elif meta["format"] == "dict":
-                res = {meta["keys"][k_hash]: pd.read_hdf(path_hd5, key=k_hash) for k_hash in meta["keys"]}
+                res = {
+                    meta["keys"][k_hash]: pd.read_hdf(path_hd5, key=k_hash)
+                    for k_hash in meta["keys"]
+                }
 
     if clear_cache:
         shutil.rmtree(path_base_cache)
@@ -57,8 +66,15 @@ def calculate_or_cache(fn_calculate, force_calc=False, clear_cache=False, path_b
         if clear_cache:
             return res
 
-        format_res = "single" if isinstance(res, pd.DataFrame) else "list" if type(res) == list else "dict" if type(
-            res) == dict else "unknown"
+        format_res = (
+            "single"
+            if isinstance(res, pd.DataFrame)
+            else "list"
+            if type(res) == list
+            else "dict"
+            if type(res) == dict
+            else "unknown"
+        )
 
         # "main" if format_res == "single" else [i for i in enumerate(res)] if format_res == "list" else [k for k in res.keys()] if format_res == "dict" else None
         name_hd5 = "result_cache.hd5"
@@ -72,7 +88,9 @@ def calculate_or_cache(fn_calculate, force_calc=False, clear_cache=False, path_b
             for k, df in zip(res_keys, res):
                 df.to_hdf(path_hd5, key=k)
         elif format_res == "dict":
-            res_keys = {"key" + hashlib.sha256(str.encode(k)).hexdigest(): k for k in res.keys()}
+            res_keys = {
+                "key" + hashlib.sha256(str.encode(k)).hexdigest(): k for k in res.keys()
+            }
             for k_hash in res_keys:
                 k = res_keys[k_hash]
                 res[k].to_hdf(path_hd5, key=k_hash)
@@ -84,11 +102,11 @@ def calculate_or_cache(fn_calculate, force_calc=False, clear_cache=False, path_b
             "timings": {
                 "cache_creation": time.time(),
                 "calc_start": time_calc_start,
-                "calc_end": time_calc_end
+                "calc_end": time_calc_end,
             },
             "format": format_res,
             "path": name_hd5,
-            "keys": res_keys
+            "keys": res_keys,
         }
 
         meta = {}
