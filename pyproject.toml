@@ -7,6 +7,8 @@ authors = ["Julian Stier <julian.stier@uni-passau.de>"]
 [tool.poetry.dependencies]
 python = "^3.8"
 networkx = { version = "^2.5", optional = true }
+pandas = "^1.4.2"
+numpy = "^1.22.4"
 
 [tool.poetry.dev-dependencies]
 matplotlib = { version = "^3.3" }
