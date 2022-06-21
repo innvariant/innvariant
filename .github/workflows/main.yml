@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python 3.8
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2
         with:
           python-version: 3.8
       - name: Linting
@@ -38,19 +38,15 @@ jobs:
         shell: bash
         run: echo ::set-output name=version::$(python -c "import sys; print('-'.join(str(v) for v in sys.version_info))")
 
-      - name: Install poetry
-        shell: bash
-        run: |
-          curl -fsS -o get-poetry.py https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py
-          python get-poetry.py --preview -y
-          echo "::set-env name=PATH::$HOME/.poetry/bin:$PATH"
+      - name: Python Poetry Action
+        uses: abatilo/actions-poetry@v2.1.0
 
       - name: Configure poetry
         shell: bash
         run: poetry config virtualenvs.in-project true
 
       - name: Set up cache
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         id: cache
         with:
           path: .venv
@@ -59,7 +55,7 @@ jobs:
       - name: Ensure cache is healthy
         if: steps.cache.outputs.cache-hit == 'true'
         shell: bash
-        run: poetry run pip --version >/dev/null 2>&1 || rm -rf .venv
+        run: timeout 5s poetry run pip --version || rm -rf .venv
 
       - name: Install dependencies
         shell: bash
