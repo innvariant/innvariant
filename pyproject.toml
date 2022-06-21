@@ -1,17 +1,17 @@
 [tool.poetry]
 name = "innvariant"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = ["Julian Stier <julian.stier@uni-passau.de>"]
 
 [tool.poetry.dependencies]
-python = "^3.6.1"
+python = "^3.8"
 networkx = { version = "^2.5", optional = true }
 
 [tool.poetry.dev-dependencies]
 matplotlib = { version = "^3.3" }
 pytest = "^3.0"
-black = { version = "^19.10b0", python = "^3.6" }
+black = "^22.3.0"
 pre-commit = "^2.3.0"
 
 [tool.poetry.extras]
