@@ -9,6 +9,7 @@ python = "^3.8"
 networkx = { version = "^2.5", optional = true }
 pandas = "^1.4.2"
 numpy = "^1.22.4"
+tables = "^3.7.0"
 
 [tool.poetry.dev-dependencies]
 matplotlib = { version = "^3.3" }
