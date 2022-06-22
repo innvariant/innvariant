@@ -7,7 +7,21 @@ Provides some additional functionalities re-used over multiple experiments and t
 
 
 # Caching Tools
+A simple caching mechanism for computations in jupyter notebooks.
+The cache is stored locally in disk such that you have some overhead in writing it.
+Otherwise, better use lru_cache!
+This solution is intended for cases where you might expect cells to crash etc.
+```python
+import numpy as np
+from innvariant.pandas import cache
 
+@cache(key="complex_computation")
+def complex_computation(param1: int = 100):
+    return {ix: np.random.randn(np.random.randint(10, 20)) for ix in range(param1)}
+
+complex_computation()  # executed first time
+complex_computation()  # should be coming from cache
+```
 
 
 # NetworkX Additions
