@@ -3,7 +3,15 @@ Provides some additional functionalities re-used over multiple experiments and t
 
 
 # Install
-``poetry install innvariant[all]``
+- ``pip install innvariant``
+- conda:
+```yaml
+dependencies:
+- pip
+- pip:
+  - innvariant
+```
+- ``poetry install innvariant[all]``
 
 
 # Caching Tools
@@ -13,7 +21,7 @@ Otherwise, better use lru_cache!
 This solution is intended for cases where you might expect cells to crash etc.
 ```python
 import numpy as np
-from innvariant.pandas import cache
+from innvariant.tools import cache
 
 @cache(key="complex_computation")
 def complex_computation(param1: int = 100):
@@ -21,6 +29,19 @@ def complex_computation(param1: int = 100):
 
 complex_computation()  # executed first time
 complex_computation()  # should be coming from cache
+```
+With S3FS support:
+```python
+import numpy as np
+from innvariant.tools import cache
+
+@cache(key="another_computation", s3_access_key="my-access-key", s3_secret_key="my-secret-key", s3_base="/bucket/cache/")
+def another_computation(param1: int = 100):
+    return {ix: np.random.randn(np.random.randint(10, 20)) for ix in range(param1)}
+
+another_computation()  # executed first time
+another_computation()  # should be coming from cache
+# Will sync cache to remote s3fs
 ```
 
 
