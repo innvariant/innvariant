@@ -73,6 +73,20 @@ class CacheManager(object):
 
         self._initialize_s3fs()
 
+    def sync_s3(self):
+        if self._s3_access_key is not None and os.path.exists(self._path_base):
+            self._sync_to(self._path_base, self._s3fs, self._s3_base)
+            self._sync_from(self._s3fs, self._s3_base, self._path_base)
+
+    def clear_s3(self):
+        if self._s3_access_key is not None:
+            assert self._s3_base is not None and len(self._s3_base) > 0
+
+        for path_remote_file in self._s3fs.ls(self._s3_base):
+            if "cache-" not in path_remote_file:
+                continue
+            self._s3fs.delete(path_remote_file)
+
     def _ensure_base_path(self):
         if not os.path.exists(self._path_base):
             try:
@@ -121,7 +135,7 @@ class CacheManager(object):
         )
         meta.to_hdf(path_meta, key=self._key_cachemanager)
 
-    def clear_all(self):
+    def clear_local(self):
         self._ensure_base_path()
         files = glob.glob(self._path_base + os.path.sep + "cache*")
         for path_file in files:
@@ -132,6 +146,10 @@ class CacheManager(object):
 
         if len(os.listdir(self._path_base)) == 0:
             os.removedirs(self._path_base)
+
+    def clear_all(self):
+        self.clear_local()
+        self.clear_s3()
 
     def _add_meta(self, key, hash_code, hash_args, hash_kwargs, name_cache):
         meta = pd.DataFrame.from_dict(
@@ -207,8 +225,7 @@ class CacheManager(object):
         self._add_meta(key, hash_code, hash_args, hash_kwargs, name_cache)
 
     def __del__(self):
-        if self._s3_access_key is not None and os.path.exists(self._path_base):
-            self._sync_to(self._path_base, self._s3fs, self._s3_base)
+        self.sync_s3()
 
     def _initialize_s3fs(self):
         self._s3fs = None
@@ -246,6 +263,9 @@ class CacheManager(object):
             s3fs.upload(path_local, path_remote)
 
         path_local_meta = os.path.join(path_base, self._name_cache_meta)
+        if not os.path.exists(path_local_meta):
+            return
+
         path_remote_meta = os.path.join(path_remote_base, self._name_cache_meta)
         if s3fs.exists(path_remote_meta):
             path_tmp = f".meta-{str(uuid.uuid4())}.hd5"

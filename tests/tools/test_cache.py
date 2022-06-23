@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import warnings
 
 import numpy as np
 
@@ -40,12 +41,12 @@ def test_dev():
     assert end_first - start_first > end_second - start_second
 
     cm = get_cachemanager_for(my_calc1)
-    cm.clear_all()
+    cm.clear_local()
 
 
 def test_clear():
     cm = CacheManager(".cache/")
-    cm.clear_all()
+    cm.clear_local()
 
 
 def test_get_cm():
@@ -57,21 +58,31 @@ def test_get_cm():
     assert cm is not None
 
 
-def test_remote_cache():
+def prepare_remote_test():
     path_config = "config.json"
     if not os.path.exists(path_config):
-        return
+        warnings.warn("No test configuration file for S3FS found.")
+        return None, None, None, None
 
     with open(path_config, "r") as handle:
         config = json.load(handle)
 
     if "accesskey" not in config or len(config["accesskey"]) < 1:
-        return
+        warnings.warn("No valid configuration for S3FS found.")
+        return None, None, None, None
 
     accesskey = config["accesskey"]
     secretkey = config["secretkey"]
     base = config["base"]
     endpoint = config["endpoint"] if "endpoint" in config else None
+
+    return accesskey, secretkey, base, endpoint
+
+
+def test_remote_cache():
+    accesskey, secretkey, base, endpoint = prepare_remote_test()
+    if accesskey is None:
+        return
 
     @cache(
         key="abc1",
@@ -100,4 +111,25 @@ def test_remote_cache():
     my_calc2(6)
 
     cm = get_cachemanager_for(my_calc1)
-    cm.clear_all()
+    cm.clear_local()
+
+
+def test_remote_clear_cache():
+    accesskey, secretkey, base, endpoint = prepare_remote_test()
+    if accesskey is None:
+        return
+
+    @cache(
+        key="test_remote_clear_cache",
+        s3_base=base,
+        s3_access_key=accesskey,
+        s3_secret_key=secretkey,
+        s3_endpoint=endpoint,
+    )
+    def test_remote_clear_cache():
+        return np.random.randn(5)
+
+    test_remote_clear_cache()
+
+    cm = get_cachemanager_for(test_remote_clear_cache)
+    cm.clear_s3()
