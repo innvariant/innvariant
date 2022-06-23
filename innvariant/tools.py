@@ -55,8 +55,8 @@ class CacheManager(object):
         path_base,
         access_key: str = None,
         secret_key: str = None,
-        path_remote_base: str = "/homes/stier/cache/",
-        endpoint: str = "https://share.pads.fim.uni-passau.de",
+        path_remote_base: str = None,
+        endpoint: str = None,
     ):
         self._path_base = os.path.expanduser(path_base)
         self._name_cache_meta = "cachemeta-0.1.0.hd5"
@@ -64,8 +64,12 @@ class CacheManager(object):
 
         self._s3_access_key = access_key
         self._s3_secret_key = secret_key
-        self._s3_endpoint = endpoint
-        self._s3_base = path_remote_base
+        self._s3_base = (
+            path_remote_base if path_remote_base is not None else "/homes/stier/cache/"
+        )
+        self._s3_endpoint = (
+            endpoint if endpoint is not None else "https://share.pads.fim.uni-passau.de"
+        )
 
         self._initialize_s3fs()
 
