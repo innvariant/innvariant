@@ -98,3 +98,6 @@ def test_remote_cache():
     my_calc2(3)
     my_calc1()
     my_calc2(6)
+
+    cm = get_cachemanager_for(my_calc1)
+    cm.clear_all()

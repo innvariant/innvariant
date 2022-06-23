@@ -249,16 +249,17 @@ class CacheManager(object):
             s3fs.download(path_remote_meta, path_tmp)
             meta_remote = pd.read_hdf(path_tmp, key=self._key_cachemanager)
             meta_local = self._load_meta()
-            meta_new = pd.merge(
-                meta_local,
-                meta_remote,
-                on=[
+            # meta_new = pd.concat([meta_local, meta_remote])
+            meta_new = pd.concat(
+                [meta_local, meta_remote], ignore_index=True
+            ).drop_duplicates(
+                subset=[
                     "key",
                     "time_create_cache",
                     "hash_code",
                     "hash_args",
                     "hash_kwargs",
-                ],
+                ]
             )
             meta_new.to_hdf(path_tmp, key=self._key_cachemanager)
             s3fs.upload(path_tmp, path_remote_meta)
@@ -294,10 +295,11 @@ class CacheManager(object):
         s3fs.download(path_remote_meta, path_tmp)
         meta_remote = pd.read_hdf(path_remote_meta, key=self._key_cachemanager)
         meta_local = self._load_meta()
-        meta_new = pd.merge(
-            meta_local,
-            meta_remote,
-            on=["key", "time_create_cache", "hash_code", "hash_args", "hash_kwargs"],
+        # meta_new = pd.concat([meta_local, meta_remote])
+        meta_new = pd.concat(
+            [meta_local, meta_remote], ignore_index=True
+        ).drop_duplicates(
+            subset=["key", "time_create_cache", "hash_code", "hash_args", "hash_kwargs"]
         )
         os.remove(path_tmp)
 
