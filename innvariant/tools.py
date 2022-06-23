@@ -10,6 +10,7 @@ import uuid
 import warnings
 
 import pandas as pd
+import s3fs
 
 
 PICKLE_BYTES_MAX = 2**31 - 1
@@ -49,10 +50,24 @@ class ParametersChanged(Exception):
 
 
 class CacheManager(object):
-    def __init__(self, path_base):
+    def __init__(
+        self,
+        path_base,
+        access_key: str = None,
+        secret_key: str = None,
+        path_remote_base: str = "/homes/stier/cache/",
+        endpoint: str = "https://share.pads.fim.uni-passau.de",
+    ):
         self._path_base = os.path.expanduser(path_base)
         self._name_cache_meta = "cachemeta-0.1.0.hd5"
         self._key_cachemanager = "cachemanager"
+
+        self._s3_access_key = access_key
+        self._s3_secret_key = secret_key
+        self._s3_endpoint = endpoint
+        self._s3_base = path_remote_base
+
+        self._initialize_s3fs()
 
     def _ensure_base_path(self):
         if not os.path.exists(self._path_base):
@@ -187,12 +202,132 @@ class CacheManager(object):
 
         self._add_meta(key, hash_code, hash_args, hash_kwargs, name_cache)
 
+    def __del__(self):
+        if self._s3_access_key is not None and os.path.exists(self._path_base):
+            self._sync_to(self._path_base, self._s3fs, self._s3_base)
+
+    def _initialize_s3fs(self):
+        self._s3fs = None
+        if self._s3_access_key is not None:
+            self._ensure_base_path()
+
+            self._s3fs = s3fs.S3FileSystem(
+                key=self._s3_access_key,
+                secret=self._s3_secret_key,
+                use_ssl=True,
+                client_kwargs={
+                    "endpoint_url": self._s3_endpoint,
+                },
+            )
+
+            self._sync_from(self._s3fs, self._s3_base, self._path_base)
+
+    def _sync_to(self, path_base, s3fs: s3fs.S3FileSystem, path_remote_base):
+        assert s3fs is not None
+
+        if not os.path.isdir(path_base):
+            raise ValueError(f"Path {path_base} not found.")
+
+        files = glob.glob(path_base + os.path.sep + "cache-*.pickle")
+        for path_local in files:
+            if not os.path.isfile(path_local):
+                continue
+
+            path_remote = os.path.join(
+                path_remote_base, path_local.replace(path_base, "")
+            )
+            if s3fs.exists(path_remote):
+                continue
+
+            s3fs.upload(path_local, path_remote)
+
+        path_local_meta = os.path.join(path_base, self._name_cache_meta)
+        path_remote_meta = os.path.join(path_remote_base, self._name_cache_meta)
+        if s3fs.exists(path_remote_meta):
+            path_tmp = f".meta-{str(uuid.uuid4())}.hd5"
+            assert not os.path.exists(path_tmp)
+            s3fs.download(path_remote_meta, path_tmp)
+            meta_remote = pd.read_hdf(path_tmp, key=self._key_cachemanager)
+            meta_local = self._load_meta()
+            meta_new = pd.merge(
+                meta_local,
+                meta_remote,
+                on=[
+                    "key",
+                    "time_create_cache",
+                    "hash_code",
+                    "hash_args",
+                    "hash_kwargs",
+                ],
+            )
+            meta_new.to_hdf(path_tmp, key=self._key_cachemanager)
+            s3fs.upload(path_tmp, path_remote_meta)
+            os.remove(path_tmp)
+        else:
+            s3fs.upload(path_local_meta, path_remote_meta)
+
+    def _sync_from(self, s3fs: s3fs.S3FileSystem, path_remote_base, path_base):
+        assert s3fs is not None
+
+        if not os.path.isdir(path_base):
+            raise ValueError(f"Path {path_base} not found.")
+
+        for name_remote_file in s3fs.ls(path_remote_base):
+            if not name_remote_file.startswith(
+                "cache-"
+            ) or not name_remote_file.endswith(".pickle"):
+                continue
+
+            path_local = os.path.join(path_base, name_remote_file)
+            if os.path.exists(path_local):
+                continue
+
+            path_remote = os.path.join(path_remote_base, name_remote_file)
+            s3fs.download(path_remote, path_local)
+
+        path_remote_meta = os.path.join(path_remote_base, self._name_cache_meta)
+        if not s3fs.exists(path_remote_meta):
+            return
+
+        path_tmp = f".meta-{str(uuid.uuid4())}.hd5"
+        assert not os.path.exists(path_tmp)
+        s3fs.download(path_remote_meta, path_tmp)
+        meta_remote = pd.read_hdf(path_remote_meta, key=self._key_cachemanager)
+        meta_local = self._load_meta()
+        meta_new = pd.merge(
+            meta_local,
+            meta_remote,
+            on=["key", "time_create_cache", "hash_code", "hash_args", "hash_kwargs"],
+        )
+        os.remove(path_tmp)
+
+        path_local_meta = os.path.join(path_base, self._name_cache_meta)
+        meta_new.to_hdf(path_local_meta, key=self._key_cachemanager)
+
+
+def configure(s3_access_key: str = None, s3_base: str = None, s3_endpoint: str = None):
+    pass
+
 
 def cache(key: str, *args, **kwargs):
     path_base_cache = str(kwargs["base"]) if "base" in kwargs else ".cache/"
+    s3fs_access_key = (
+        str(kwargs["s3_access_key"]) if "s3_access_key" in kwargs else None
+    )
+    s3fs_secret_key = (
+        str(kwargs["s3_secret_key"]) if "s3_secret_key" in kwargs else None
+    )
+    s3fs_base = str(kwargs["s3_base"]) if "s3_base" in kwargs else None
+    s3fs_endpoint = str(kwargs["s3_endpoint"]) if "s3_endpoint" in kwargs else None
 
     def cache_decorator(func):
-        cm = CacheManager(path_base=path_base_cache)
+        cm = CacheManager(
+            path_base=path_base_cache,
+            access_key=s3fs_access_key,
+            secret_key=s3fs_secret_key,
+            path_remote_base=s3fs_base,
+            endpoint=s3fs_endpoint,
+        )
 
         def wrapper(*args, **kwargs):
             force_calc = bool(kwargs["force_calc"]) if "force_calc" in kwargs else False
