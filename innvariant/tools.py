@@ -75,8 +75,19 @@ class CacheManager(object):
 
     def sync_s3(self):
         if self._s3_access_key is not None and os.path.exists(self._path_base):
-            self._sync_to(self._path_base, self._s3fs, self._s3_base)
-            self._sync_from(self._s3fs, self._s3_base, self._path_base)
+            try:
+                self._sync_to(self._path_base, self._s3fs, self._s3_base)
+
+                try:
+                    self._sync_from(self._s3fs, self._s3_base, self._path_base)
+                except OSError as e:
+                    warnings.warn(
+                        f"Connection issues with <{self._s3_endpoint}> when syncing cache from S3: {str(e)}"
+                    )
+            except OSError as e:
+                warnings.warn(
+                    f"Connection issues with <{self._s3_endpoint}> when syncing cache to S3: {str(e)}"
+                )
 
     def clear_s3(self):
         if self._s3_access_key is not None:
@@ -241,7 +252,12 @@ class CacheManager(object):
                 },
             )
 
-            self._sync_from(self._s3fs, self._s3_base, self._path_base)
+            try:
+                self._sync_from(self._s3fs, self._s3_base, self._path_base)
+            except OSError as e:
+                warnings.warn(
+                    f"Connection issues with <{self._s3_endpoint}> when trying to sync cache data from S3: {str(e)}"
+                )
 
     def _sync_to(self, path_base, s3fs: s3fs.S3FileSystem, path_remote_base):
         assert s3fs is not None
