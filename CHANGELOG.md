@@ -1,5 +1,9 @@
 # Changelog for innvariant
 
+## 0.4
+- clearing remote and local cache via clear_local() and clear_s3()
+- os and permission error handling for s3fs
+
 ## 0.3
 - added support for s3fs when using @cache to share larger computation caches when sharing notebooks
 
