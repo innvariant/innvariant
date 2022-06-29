@@ -5,4 +5,5 @@ dist/
 .venv/
 
 tests/tools/config.json
-tests/**/.cache
+tests/**/cache
+tests/fixtures/

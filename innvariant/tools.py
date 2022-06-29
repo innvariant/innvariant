@@ -53,6 +53,7 @@ class CacheManager(object):
     def __init__(
         self,
         path_base,
+        context: str = None,
         access_key: str = None,
         secret_key: str = None,
         path_remote_base: str = None,
@@ -61,6 +62,7 @@ class CacheManager(object):
         self._path_base = os.path.expanduser(path_base)
         self._name_cache_meta = "cachemeta-0.1.0.hd5"
         self._key_cachemanager = "cachemanager"
+        self._context = context if context is not None else "default"
 
         self._s3_access_key = access_key
         self._s3_secret_key = secret_key
@@ -72,6 +74,39 @@ class CacheManager(object):
         )
 
         self._initialize_s3fs()
+
+    def sync_s3(self):
+        if self._s3_access_key is not None and os.path.exists(self._path_base):
+            try:
+                self._sync_to(self._path_base, self._s3fs, self._s3_base)
+
+                try:
+                    self._sync_from(self._s3fs, self._s3_base, self._path_base)
+                except PermissionError as e:
+                    warnings.warn(
+                        f"You seem to have not access to the defined s3 <{self._s3_endpoint}>: {str(e)}"
+                    )
+                except OSError as e:
+                    warnings.warn(
+                        f"Connection issues with <{self._s3_endpoint}> when syncing cache from S3: {str(e)}"
+                    )
+            except PermissionError as e:
+                warnings.warn(
+                    f"You seem to have not access to sync to the defined s3 <{self._s3_endpoint}>: {str(e)}"
+                )
+            except OSError as e:
+                warnings.warn(
+                    f"Connection issues with <{self._s3_endpoint}> when syncing cache to S3: {str(e)}"
+                )
+
+    def clear_s3(self):
+        if self._s3_access_key is not None:
+            assert self._s3_base is not None and len(self._s3_base) > 0
+
+        for path_remote_file in self._s3fs.ls(self._s3_base):
+            if f"cache-{self._context}" not in path_remote_file:
+                continue
+            self._s3fs.delete(path_remote_file)
 
     def _ensure_base_path(self):
         if not os.path.exists(self._path_base):
@@ -86,7 +121,7 @@ class CacheManager(object):
         self._ensure_base_path()
         path_meta = os.path.join(self._path_base, self._name_cache_meta)
         if not os.path.exists(path_meta):
-            self.clear_meta()
+            self.init_clean_meta()
         return pd.read_hdf(path_meta, key=self._key_cachemanager)
 
     def clear(self, key: str):
@@ -105,12 +140,13 @@ class CacheManager(object):
             except FileNotFoundError:
                 print(f"Error while deleting cache file <{path_file}>")
 
-    def clear_meta(self):
+    def init_clean_meta(self):
         self._ensure_base_path()
         path_meta = os.path.join(self._path_base, self._name_cache_meta)
         meta = pd.DataFrame.from_dict(
             {
                 "key": [],
+                "context": [],
                 "time_create_cache": [],
                 "used_hash": [],
                 "hash_code": [],
@@ -121,9 +157,9 @@ class CacheManager(object):
         )
         meta.to_hdf(path_meta, key=self._key_cachemanager)
 
-    def clear_all(self):
+    def clear_local(self):
         self._ensure_base_path()
-        files = glob.glob(self._path_base + os.path.sep + "cache*")
+        files = glob.glob(self._path_base + os.path.sep + f"cache-{self._context}*")
         for path_file in files:
             try:
                 os.remove(path_file)
@@ -133,10 +169,15 @@ class CacheManager(object):
         if len(os.listdir(self._path_base)) == 0:
             os.removedirs(self._path_base)
 
+    def clear_all(self):
+        self.clear_local()
+        self.clear_s3()
+
     def _add_meta(self, key, hash_code, hash_args, hash_kwargs, name_cache):
         meta = pd.DataFrame.from_dict(
             {
                 "key": [key],
+                "context": [self._context],
                 "time_create_cache": [time.time()],
                 "used_hash": ["sha256"],
                 "hash_code": [hash_code],
@@ -192,7 +233,7 @@ class CacheManager(object):
     def store(
         self, result, key: str, func: callable, args: list = None, kwargs: dict = None
     ):
-        name_cache = f"cache-{key}-{str(uuid.uuid4())}.pickle"
+        name_cache = f"cache-{self._context}-{key}-{str(uuid.uuid4())}.pickle"
         hash_code = hashlib.sha256(marshal.dumps(func.__code__)).hexdigest()
         hash_args = hashlib.sha256(marshal.dumps(args)).hexdigest()
         hash_kwargs = hashlib.sha256(marshal.dumps(kwargs)).hexdigest()
@@ -207,8 +248,7 @@ class CacheManager(object):
         self._add_meta(key, hash_code, hash_args, hash_kwargs, name_cache)
 
     def __del__(self):
-        if self._s3_access_key is not None and os.path.exists(self._path_base):
-            self._sync_to(self._path_base, self._s3fs, self._s3_base)
+        self.sync_s3()
 
     def _initialize_s3fs(self):
         self._s3fs = None
@@ -224,7 +264,12 @@ class CacheManager(object):
                 },
             )
 
-            self._sync_from(self._s3fs, self._s3_base, self._path_base)
+            try:
+                self._sync_from(self._s3fs, self._s3_base, self._path_base)
+            except OSError as e:
+                warnings.warn(
+                    f"Connection issues with <{self._s3_endpoint}> when trying to sync cache data from S3: {str(e)}"
+                )
 
     def _sync_to(self, path_base, s3fs: s3fs.S3FileSystem, path_remote_base):
         assert s3fs is not None
@@ -232,7 +277,7 @@ class CacheManager(object):
         if not os.path.isdir(path_base):
             raise ValueError(f"Path {path_base} not found.")
 
-        files = glob.glob(path_base + os.path.sep + "cache-*.pickle")
+        files = glob.glob(path_base + os.path.sep + f"cache-{self._context}*.pickle")
         for path_local in files:
             if not os.path.isfile(path_local):
                 continue
@@ -246,6 +291,9 @@ class CacheManager(object):
             s3fs.upload(path_local, path_remote)
 
         path_local_meta = os.path.join(path_base, self._name_cache_meta)
+        if not os.path.exists(path_local_meta):
+            return
+
         path_remote_meta = os.path.join(path_remote_base, self._name_cache_meta)
         if s3fs.exists(path_remote_meta):
             path_tmp = f".meta-{str(uuid.uuid4())}.hd5"
@@ -316,7 +364,7 @@ def configure(s3_access_key: str = None, s3_base: str = None, s3_endpoint: str =
 
 
 def cache(key: str, *args, **kwargs):
-    path_base_cache = str(kwargs["base"]) if "base" in kwargs else ".cache/"
+    path_base_cache = str(kwargs["base"]) if "base" in kwargs else "cache/"
     s3fs_access_key = (
         str(kwargs["s3_access_key"]) if "s3_access_key" in kwargs else None
     )
