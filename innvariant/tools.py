@@ -146,7 +146,7 @@ class CacheManager(object):
         meta = pd.DataFrame.from_dict(
             {
                 "key": [],
-                "context": [self._context],
+                "context": [],
                 "time_create_cache": [],
                 "used_hash": [],
                 "hash_code": [],
